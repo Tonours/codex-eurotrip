@@ -1,220 +1,103 @@
-# Codex Eurotrip 🎒🇪🇺🇬🇧
+# Codex Eurotrip
 
-A simple, stable way to use **Computer Use** with Codex through a manual MCP wrapper — even when geography politely disagrees.
+Manual MCP setup for Codex Computer Use on macOS.
 
-This package provides a minimal setup that:
+## TL;DR
 
-- use the already-installed bundled Computer Use plugin
-- expose it to Codex as a **manual MCP server**
-- avoids binary patching, proxy tricks, and app-signature issues
-
----
-
-## Small architecture diagram
+Use the native wrapper as the main MCP server:
 
 ```text
-Codex UI
-  ↓
-Settings → MCP Servers
+./run-computer-use-mcp.sh
+```
+
+Do **not** use `run-mcp-proxy.sh` as the main Codex MCP command. It is only for
+debugging the known native `list_apps` issue.
+
+## How it works
+
+```text
+Codex
   ↓
 run-computer-use-mcp.sh
   ↓
-SkyComputerUseClient (MCP client)
+SkyComputerUseClient
   ↓
-SkyComputerUseService (native macOS service)
-  ↓
-Accessibility + Screen Recording permissions
-  ↓
-Control of macOS apps
+SkyComputerUseService
 ```
 
----
+This path is validated for native UI tools such as `get_app_state`, `click`, and
+`type_text`.
 
-## Why this works
+Known limitation: native `list_apps` can hang. The local proxy can test that one
+tool separately without becoming the main server.
 
-The wrapper looks for the bundled plugin in either of these locations:
-
-```text
-~/.codex/.tmp/bundled-marketplaces/openai-bundled/plugins/computer-use
-/Applications/Codex.app/Contents/Resources/plugins/openai-bundled/plugins/computer-use
-```
-
-That plugin already contains:
-
-- `SkyComputerUseClient`
-- `SkyComputerUseService`
-- signed native app bundles
-- app-specific instruction bundles
-
-Instead of depending on a dedicated in-app setup flow, this package connects Codex directly to the locally installed MCP client.
-
----
-
-## Quick start
-
-### 1. Run the helper
-
-From inside the folder:
+## Install
 
 ```bash
 bash ./start-here.sh
 ```
 
-Or from anywhere:
-
-```bash
-bash /path/to/codex-eurotrip/start-here.sh
-```
-
-It will:
-
-- verify the plugin exists
-- verify the native binaries are executable
-- verify signature status
-- copy the wrapper path to your clipboard
-- print the exact values to paste into Codex
-
-### 2. Add the MCP server in Codex
-
-Open:
-
-**Settings → MCP Servers**
-
-Add a server with:
+Then in Codex:
 
 - **Name**: `computer-use-local`
-- **Command**: the path printed by `start-here.sh`
-- **Args**: leave empty
-- **Working directory**: the folder printed by `start-here.sh`
+- **Command**: printed by `start-here.sh`
+- **Args**: empty
+- **Working directory**: printed by `start-here.sh`
 
-### 3. Restart Codex
+Restart Codex after changing MCP settings.
 
-Then test with:
+## Test
 
-```text
-List the Mac apps you can control.
-```
-
----
-
-The folder is relocatable: `start-here.sh` regenerates `computer-use.mcp.json` for its current location.
-
----
-
-## Included files
-
-- `run-computer-use-mcp.sh` — starts the native Computer Use MCP client
-- `computer-use.mcp.json` — optional importable config
-- `start-here.sh` — setup helper
-- `doctor.sh` — healthcheck
-- `README.md` — this file
-
----
-
-## Healthcheck
-
-Run:
+Automated local checks:
 
 ```bash
-bash ./doctor.sh
+bash ./test-suite.sh
 ```
 
-It checks:
+Manual Codex checks after restart:
 
-- plugin directory exists
-- app bundle exists
-- MCP client exists
-- service binary exists
-- app signature is valid
+```text
+Open TextEdit and create a short note.
+Open Safari and tell me what window is visible.
+```
 
----
+The automated suite intentionally does not drive live UI actions. Use Codex
+Computer Use for that E2E check.
+
+## Known Good
+
+Validated:
+
+- `get_app_state`: TextEdit, Finder, Safari
+- `click`: Finder and TextEdit menus
+- `type_text`: TextEdit
+- TextEdit flow: create, save, edit, save again, verify file content
+- Experimental `list_apps` proxy: `METRIC list_apps_success=1`
+
+## Files
+
+| File | Purpose |
+|---|---|
+| `run-computer-use-mcp.sh` | Stable MCP entry point |
+| `start-here.sh` | Generates local config and prints setup values |
+| `doctor.sh` | Checks native plugin and local helper files |
+| `test-suite.sh` | Runs the local non-UI test suite |
+| `test-list-apps.sh` | Tests the experimental `list_apps` proxy |
+| `run-mcp-proxy.sh` | Experimental `list_apps` proxy entry |
+| `local-list-apps.js` | Experimental proxy implementation |
+| `list-apps-helper(.swift)` | Local app lister used by the proxy |
 
 ## Permissions
 
-If Codex sees the MCP server but actions fail, the issue is usually macOS permissions.
+Enable in **System Settings -> Privacy & Security**:
 
-Check:
+- **Accessibility**: `Codex` and `Codex Computer Use`
+- **Screen Recording**: `Codex Computer Use`
 
-- **System Settings → Privacy & Security → Accessibility**
-- **System Settings → Privacy & Security → Screen Recording**
+Restart Codex after changing permissions.
 
-Grant access to:
-
-- **Codex**
-- **Codex Computer Use**
-
-Important: in practice, allowing only `Codex Computer Use` is often not enough.
-You usually need to allow **Codex itself** as well, especially under **Accessibility**.
-
-Recommended setup:
-
-- **Accessibility**: enable `Codex` and `Codex Computer Use`
-- **Screen Recording**: enable at least `Codex Computer Use`
-
-Then fully quit and restart Codex.
-
----
-
-## Recommended test prompts
-
-```text
-List the Mac apps you can control.
-```
-
-```text
-Open Finder and go to my Desktop.
-```
-
-```text
-Open Notes and create a note titled "Computer Use test".
-```
-
-```text
-Use computer use, not browser tools.
-```
-
----
-
-## Troubleshooting
-
-### Codex does not see the MCP server
-
-- re-open **Settings → MCP Servers**
-- verify the command path exactly matches the wrapper
-- restart Codex
-- open a new conversation
-
-### Computer Use is connected but authorization still fails
-
-Most likely missing macOS permissions.
-
-Re-check:
-
-- **Accessibility** → `Codex` and `Codex Computer Use`
-- **Screen Recording** → `Codex Computer Use`
-
-If you just changed a toggle, fully quit and relaunch Codex before testing again.
-
-### Wrapper fails
-
-Run directly:
+## Rebuild helper
 
 ```bash
-bash ./run-computer-use-mcp.sh
+swiftc list-apps-helper.swift -o list-apps-helper
 ```
-
-Then run:
-
-```bash
-bash ./doctor.sh
-```
-
-### Plugin disappeared after a Codex update
-
-Re-run:
-
-```bash
-bash ./doctor.sh
-```
-
-If nothing is found, install Codex again and launch it once, then retry.

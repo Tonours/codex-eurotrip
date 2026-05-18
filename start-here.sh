@@ -40,7 +40,7 @@ Quick setup in Codex:
 4. Restart Codex
 5. Test with:
 
-   List the Mac apps you can control.
+   Open TextEdit and create a short note.
 
 Optional import file regenerated for this location:
    $JSON_FILE

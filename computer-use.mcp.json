@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "computer-use-local": {
-      "command": "__GENERATED_BY_START_HERE_SH__",
-      "args": [],
-      "cwd": "__GENERATED_BY_START_HERE_SH__"
-    }
-  }
-}
