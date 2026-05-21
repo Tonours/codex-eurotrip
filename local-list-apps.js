@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // MCP stdio proxy for Codex Computer Use
-// Intercepts list_apps → local NSWorkspace query (via precompiled Swift binary)
+// Intercepts list_apps -> local NSWorkspace query (via precompiled Swift binary)
 // All other MCP messages forwarded to native SkyComputerUseClient
 
 const { spawn, execSync } = require('child_process');

@@ -1,29 +1,28 @@
 #!/bin/bash
 set -euo pipefail
 
-PLUGIN_DIR=""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROXY="$SCRIPT_DIR/local-list-apps.js"
+NODE_BIN=""
+
+if [ ! -f "$PROXY" ]; then
+  echo "Computer Use proxy missing: $PROXY" >&2
+  exit 1
+fi
+
 for candidate in \
-  "$HOME/.codex/.tmp/bundled-marketplaces/openai-bundled/plugins/computer-use" \
-  "/Applications/Codex.app/Contents/Resources/plugins/openai-bundled/plugins/computer-use"
+  "$(command -v node || true)" \
+  "/Applications/Codex.app/Contents/Resources/node"
 do
-  if [ -d "$candidate" ]; then
-    PLUGIN_DIR="$candidate"
+  if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+    NODE_BIN="$candidate"
     break
   fi
 done
 
-if [ -z "$PLUGIN_DIR" ]; then
-  echo "Computer Use plugin directory not found." >&2
-  echo "Install and launch Codex once first, then retry." >&2
+if [ -z "$NODE_BIN" ]; then
+  echo "Node.js not found. Install Node or launch this wrapper from Codex.app so it can use /Applications/Codex.app/Contents/Resources/node." >&2
   exit 1
 fi
 
-CLIENT_BIN="$PLUGIN_DIR/Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient"
-
-if [ ! -x "$CLIENT_BIN" ]; then
-  echo "Computer Use client not executable: $CLIENT_BIN" >&2
-  exit 1
-fi
-
-cd "$PLUGIN_DIR"
-exec "$CLIENT_BIN" mcp
+exec "$NODE_BIN" "$PROXY"

@@ -33,7 +33,7 @@ run_check "doctor" bash ./doctor.sh
 
 run_check "timeout command available" command -v timeout
 
-run_check "native wrapper exposes tools/list" bash -c '
+run_check "configured wrapper exposes tools/list" bash -c '
   {
     printf "%s\n" "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test-suite\",\"version\":\"1.0\"}}}"
     sleep 0.2
@@ -44,12 +44,20 @@ run_check "native wrapper exposes tools/list" bash -c '
   } | timeout 5 bash ./run-computer-use-mcp.sh | grep -q "\"get_app_state\""
 '
 
-run_check "experimental list_apps proxy" bash -c '
-  timeout 20 bash ./test-list-apps.sh | tee "${TMPDIR:-/tmp}/codex-eurotrip-list-apps.out"
-  grep -q "METRIC list_apps_success=1" "${TMPDIR:-/tmp}/codex-eurotrip-list-apps.out"
+run_check "configured wrapper handles list_apps" bash -c '
+  {
+    printf "%s\n" "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test-suite\",\"version\":\"1.0\"}}}"
+    sleep 0.2
+    printf "%s\n" "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}"
+    sleep 0.2
+    printf "%s\n" "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"list_apps\",\"arguments\":{}}}"
+    sleep 1
+  } | timeout 5 bash ./run-computer-use-mcp.sh >"${TMPDIR:-/tmp}/codex-eurotrip-list-apps.out"
+  grep -q "\"result\"" "${TMPDIR:-/tmp}/codex-eurotrip-list-apps.out"
+  grep -q "bundleIdentifier" "${TMPDIR:-/tmp}/codex-eurotrip-list-apps.out"
 '
 
-run_check "start-here targets native wrapper" bash -c '
+run_check "start-here targets configured wrapper" bash -c '
   grep -q "run-computer-use-mcp.sh" ./start-here.sh
   ! grep -q "run-mcp-proxy.sh" ./start-here.sh
 '
@@ -60,10 +68,10 @@ run_check "Codex config points to native wrapper" bash -c '
 '
 
 if pgrep -f "$ROOT/local-list-apps.js" >/dev/null 2>&1; then
-  fail "main Codex server is not using experimental proxy"
-  printf "  Found local-list-apps.js running. Restart Codex after changing MCP config.\n"
+  ok "main Codex server is using list_apps proxy"
 else
-  ok "main Codex server is not using experimental proxy"
+  warn_msg="No running local-list-apps.js process found. Restart Codex after this change so it loads the fixed wrapper."
+  printf "[WARN] %s\n" "$warn_msg"
 fi
 
 printf "\nSummary: %s passed, %s failed\n" "$PASS" "$FAIL"

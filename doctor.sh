@@ -41,11 +41,25 @@ else
   warn "App signature check failed"
 fi
 
-# Check optional list_apps helper components
+# Check list_apps proxy components used by the configured wrapper
 HELPER_BIN="$ROOT/list-apps-helper"
 PROXY_BIN="$ROOT/local-list-apps.js"
 PROXY_SCRIPT="$ROOT/run-mcp-proxy.sh"
 WRAPPER_SCRIPT="$ROOT/run-computer-use-mcp.sh"
+NODE_BIN=""
+
+for candidate in \
+  "$(command -v node || true)" \
+  "/Applications/Codex.app/Contents/Resources/node"
+do
+  if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+    NODE_BIN="$candidate"
+    break
+  fi
+done
+
+[ -n "$NODE_BIN" ] || fail "Node.js not found. Install Node or use Codex.app with bundled Node at /Applications/Codex.app/Contents/Resources/node."
+ok "Node.js runtime available: $NODE_BIN"
 
 if [ -x "$HELPER_BIN" ]; then
   # Check architecture compatibility
@@ -55,14 +69,14 @@ if [ -x "$HELPER_BIN" ]; then
     warn "list-apps-helper is $HELPER_ARCH but this Mac is $HOST_ARCH. Rebuild: swiftc $ROOT/list-apps-helper.swift -o $HELPER_BIN"
   fi
 else
-  warn "list_apps-helper not found. Build it: swiftc $ROOT/list-apps-helper.swift -o $HELPER_BIN"
+  fail "list_apps-helper not found. Build it: swiftc $ROOT/list-apps-helper.swift -o $HELPER_BIN"
 fi
-[ -f "$PROXY_BIN" ] || warn "local-list-apps.js not found"
+[ -f "$PROXY_BIN" ] || fail "local-list-apps.js not found"
 [ -x "$PROXY_SCRIPT" ] || warn "run-mcp-proxy.sh not found or not executable"
-[ -x "$WRAPPER_SCRIPT" ] || warn "run-computer-use-mcp.sh not found or not executable"
+[ -x "$WRAPPER_SCRIPT" ] || fail "run-computer-use-mcp.sh not found or not executable"
 
-if [ -x "$HELPER_BIN" ] && [ -f "$PROXY_BIN" ] && [ -x "$PROXY_SCRIPT" ]; then
-  ok "Optional list_apps proxy components ready"
+if [ -x "$HELPER_BIN" ] && [ -f "$PROXY_BIN" ] && [ -x "$WRAPPER_SCRIPT" ]; then
+  ok "list_apps proxy components ready"
 fi
 
 printf "\nReady. In Codex, add this MCP command:\n\n"
