@@ -1,107 +1,49 @@
-# Codex Eurotrip
+# Codex Eurotrip 🎒🇪🇺🇬🇧
 
-Manual MCP setup for Codex Computer Use on macOS.
+A simple, stable way to use **Computer Use** with Codex through a manual MCP wrapper — even when geography politely disagrees.
 
-## TL;DR
+## What it does
 
-Use the local wrapper as the main MCP server:
+Codex Computer Use requires the native `SkyComputerUseService` running alongside the
+Desktop app. This wrapper proxies tool calls through the authenticated native client
+when the service is running, and falls back to local screencapture/AppleScript otherwise.
 
-```text
-./run-computer-use-mcp.sh
-```
-
-The wrapper runs the native Computer Use client and intercepts `list_apps` with a
-local macOS app query, because the native `list_apps` call can hang.
-
-## How it works
-
-```text
-Codex
-  ↓
-run-computer-use-mcp.sh
-  ↓
-local-list-apps.js
-  ├─ list_apps → list-apps-helper
-  ↓
-SkyComputerUseClient
-  ↓
-SkyComputerUseService
-```
-
-This path is validated for native UI tools such as `get_app_state`, `click`, and
-`type_text`, while `list_apps` is served locally.
-
-## Install
+## Setup
 
 ```bash
-bash ./start-here.sh
+# 1. Start the XPC service (auto-restarts via LaunchAgent)
+./launch-service.sh
+
+# 2. Add to ~/.codex/config.toml:
 ```
-
-The wrapper needs a Node.js runtime for the local proxy. It uses `node` from
-`PATH` when available, otherwise it falls back to Codex.app's bundled Node at
-`/Applications/Codex.app/Contents/Resources/node`.
-
-Then in Codex:
-
-- **Name**: `computer-use-local`
-- **Command**: printed by `start-here.sh`
-- **Args**: empty
-- **Working directory**: printed by `start-here.sh`
-
-Restart Codex after changing MCP settings.
-
-## Test
-
-Automated local checks:
-
+```toml
+[mcp_servers.computer-use-local]
+command = "/Volumes/Crucial/codex-eurotrip/run-computer-use-mcp.sh"
+cwd = "/Volumes/Crucial/codex-eurotrip"
+enabled = true
+```
 ```bash
-bash ./test-suite.sh
+# 3. Restart Codex
 ```
 
-Manual Codex checks after restart:
+## Tool status
 
-```text
-Open TextEdit and create a short note.
-Open Safari and tell me what window is visible.
-```
-
-The automated suite intentionally does not drive live UI actions. Use Codex
-Computer Use for that E2E check.
-
-## Known Good
-
-Validated:
-
-- `get_app_state`: TextEdit, Finder, Safari
-- `click`: Finder and TextEdit menus
-- `type_text`: TextEdit
-- TextEdit flow: create, save, edit, save again, verify file content
-- `list_apps` through the configured wrapper
+| Tool | With service | Without service |
+|------|-------------|-----------------|
+| `list_apps` | ✅ native | ✅ local helper |
+| `get_app_state` | ✅ native | ✅ screencapture |
+| `click` `type_text` `press_key` `scroll` `drag` | ✅ native | 🔒 needs Accessibility |
+| `set_value` `select_text` `perform_secondary_action` | ✅ native | ⏱ timeout |
 
 ## Files
 
 | File | Purpose |
-|---|---|
-| `run-computer-use-mcp.sh` | Stable MCP entry point, including the `list_apps` fix |
-| `start-here.sh` | Generates local config and prints setup values |
-| `doctor.sh` | Checks native plugin and local helper files |
-| `test-suite.sh` | Runs the local non-UI test suite |
-| `test-list-apps.sh` | Tests the `list_apps` proxy path |
-| `run-mcp-proxy.sh` | Direct proxy entry for focused debugging |
-| `local-list-apps.js` | Proxy implementation |
-| `list-apps-helper(.swift)` | Local app lister used for `list_apps` |
-
-## Permissions
-
-Enable in **System Settings -> Privacy & Security**:
-
-- **Accessibility**: `Codex` and `Codex Computer Use`
-- **Screen Recording**: `Codex Computer Use`
-
-Restart Codex after changing permissions.
-
-## Rebuild helper
-
-```bash
-swiftc list-apps-helper.swift -o list-apps-helper
-```
+|------|---------|
+| `run-computer-use-mcp.sh` | Entry point Codex launches |
+| `local-list-apps.js` | MCP proxy + routing logic |
+| `get-app-state-helper.js` | Screenshot + window info |
+| `list-apps-helper` | App listing (NSWorkspace) |
+| `input-helper` | Click/type/scroll/drag (CGEvent) |
+| `ax-tree-helper` | Full AX tree extraction |
+| `launch-service.sh` | Start SkyComputerUseService |
+| `*.swift` | Sources for compiled helpers |
