@@ -3,7 +3,30 @@ import Foundation
 
 let workspace = NSWorkspace.shared
 let fileManager = FileManager.default
-let appDirs = ["/Applications", "/System/Applications", "/System/Library/CoreServices"]
+
+func uniqueExistingDirectories(_ urls: [URL]) -> [URL] {
+    var seen = Set<String>()
+    var result: [URL] = []
+
+    for url in urls {
+        var isDirectory: ObjCBool = false
+        let path = url.path
+        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory),
+              isDirectory.boolValue,
+              !seen.contains(path) else {
+            continue
+        }
+        seen.insert(path)
+        result.append(url)
+    }
+
+    return result
+}
+
+let appDirs = uniqueExistingDirectories(
+    fileManager.urls(for: .applicationDirectory, in: .allDomainsMask)
+        + fileManager.urls(for: .coreServiceDirectory, in: .allDomainsMask)
+)
 
 // Apple apps that ARE useful to show
 let includedAppleApps: Set<String> = [
@@ -46,12 +69,34 @@ for app in runningApps {
     ]
 }
 
-// Add installed apps from /Applications directories
+func appBundles(in directory: URL, depth: Int = 0) -> [URL] {
+    guard let contents = try? fileManager.contentsOfDirectory(
+        at: directory,
+        includingPropertiesForKeys: [.isDirectoryKey],
+        options: [.skipsHiddenFiles]
+    ) else {
+        return []
+    }
+
+    var bundles: [URL] = []
+    for url in contents {
+        if url.pathExtension == "app" {
+            bundles.append(url)
+            continue
+        }
+
+        if depth == 0,
+           (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+            bundles.append(contentsOf: appBundles(in: url, depth: depth + 1))
+        }
+    }
+    return bundles
+}
+
+// Add installed apps from standard macOS application directories.
 for dir in appDirs {
-    guard let contents = try? fileManager.contentsOfDirectory(atPath: dir) else { continue }
-    for item in contents {
-        guard item.hasSuffix(".app") else { continue }
-        let path = dir + "/" + item
+    for appUrl in appBundles(in: dir) {
+        let path = appUrl.path
         let bundle = Bundle(path: path)
         let bundleId = bundle?.bundleIdentifier ?? ""
         
@@ -61,7 +106,7 @@ for dir in appDirs {
         
         let appName = bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String
             ?? bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-            ?? item.replacingOccurrences(of: ".app", with: "")
+            ?? appUrl.deletingPathExtension().lastPathComponent
         
         allApps[bundleId] = [
             "bundleIdentifier": bundleId,

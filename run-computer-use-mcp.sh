@@ -2,41 +2,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_DIR="/Applications/Codex.app/Contents/Resources/plugins/openai-bundled/plugins/computer-use"
-CLIENT_BIN="$PLUGIN_DIR/Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient"
 PROXY="$SCRIPT_DIR/local-list-apps.js"
 
-# Detect if we're running inside the Codex Desktop app process tree.
-# If so, exec the native binary directly — it gets proper XPC context.
-# If not (codex CLI), fall back to the node proxy which intercepts list_apps
-# and adds timeouts for XPC tools that won't work from CLI.
-is_in_desktop_tree() {
-  local codex_pid
-  codex_pid=$(lsappinfo list 2>/dev/null \
-    | grep -A1 'com.openai.codex' \
-    | grep -oE 'pid = [0-9]+' \
-    | head -1 \
-    | grep -oE '[0-9]+' || true)
-  if [ -z "$codex_pid" ]; then return 1; fi
-
-  local pid=$$
-  for _ in $(seq 1 20); do
-    if [ "$pid" -eq "$codex_pid" ]; then return 0; fi
-    local ppid
-    ppid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ' || true)
-    [ -z "$ppid" ] || [ "$ppid" -le 1 ] && break
-    pid=$ppid
-  done
-  return 1
-}
-
-if [ -x "$CLIENT_BIN" ] && is_in_desktop_tree; then
-  echo "[wrapper] Detected Codex Desktop context, exec-ing native client" >&2
-  cd "$PLUGIN_DIR"
-  exec "$CLIENT_BIN" mcp
-fi
-
-# CLI context — use node proxy
+# Always use the local proxy. The native client can hang waiting for nested MCP
+# elicitation when launched directly, so the proxy must stay in control of all
+# tool calls from both Codex Desktop and CLI contexts.
 NODE_BIN=""
 
 if [ ! -f "$PROXY" ]; then
@@ -44,9 +14,18 @@ if [ ! -f "$PROXY" ]; then
   exit 1
 fi
 
+codex_bundled_node() {
+  local codex_app
+  codex_app=$(/usr/bin/osascript -e 'POSIX path of (path to application id "com.openai.codex")' 2>/dev/null || true)
+  if [ -n "$codex_app" ]; then
+    printf '%s\n' "${codex_app%/}/Contents/Resources/node"
+  fi
+}
+
 for candidate in \
+  "${COMPUTER_USE_NODE_BIN:-}" \
   "$(command -v node || true)" \
-  "/Applications/Codex.app/Contents/Resources/node"
+  "$(codex_bundled_node)"
 do
   if [ -n "$candidate" ] && [ -x "$candidate" ]; then
     NODE_BIN="$candidate"
@@ -55,8 +34,13 @@ do
 done
 
 if [ -z "$NODE_BIN" ]; then
-  echo "Node.js not found. Install Node or launch this wrapper from Codex.app so it can use /Applications/Codex.app/Contents/Resources/node." >&2
+  echo "Node.js not found. Set COMPUTER_USE_NODE_BIN, install Node, or install Codex.app." >&2
   exit 1
+fi
+
+if [ "${1:-}" = "--print-node" ]; then
+  printf '%s\n' "$NODE_BIN"
+  exit 0
 fi
 
 exec "$NODE_BIN" "$PROXY"

@@ -1,2 +1,6 @@
 computer-use.local.mcp.json
 computer-use.mcp.json
+
+# Generated helper binaries. Build them locally with ./build.sh.
+ax-action-helper
+list-apps-helper
