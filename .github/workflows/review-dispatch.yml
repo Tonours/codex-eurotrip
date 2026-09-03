@@ -1,0 +1,20 @@
+name: review-dispatch
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+permissions: {}
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.REVIEW_SSH_KEY }}" > ~/.ssh/review_dispatch
+          chmod 600 ~/.ssh/review_dispatch
+          printf '%s\n' "${{ secrets.VPS_KNOWN_HOSTS }}" > ~/.ssh/review_known_hosts
+          chmod 600 ~/.ssh/review_known_hosts
+          ssh -i ~/.ssh/review_dispatch -o UserKnownHostsFile=~/.ssh/review_known_hosts \
+            -o ConnectTimeout=15 -o BatchMode=yes \
+            ubuntu@152.228.137.32 \
+            "review Tonours/${{ github.event.repository.name }} ${{ github.event.number }} ${{ github.event.pull_request.head.sha }} ${{ github.event.action }} ${{ github.event.pull_request.user.login }}"
