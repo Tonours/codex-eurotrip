@@ -14,7 +14,15 @@ jobs:
           chmod 600 ~/.ssh/review_dispatch
           printf '%s\n' "${{ secrets.VPS_KNOWN_HOSTS }}" > ~/.ssh/review_known_hosts
           chmod 600 ~/.ssh/review_known_hosts
+          set +e
           ssh -i ~/.ssh/review_dispatch -o UserKnownHostsFile=~/.ssh/review_known_hosts \
             -o ConnectTimeout=15 -o BatchMode=yes \
             ubuntu@152.228.137.32 \
             "review Tonours/${{ github.event.repository.name }} ${{ github.event.number }} ${{ github.event.pull_request.head.sha }} ${{ github.event.action }} ${{ github.event.pull_request.user.login }}"
+          code=$?
+          set -e
+          if [ "$code" -eq 75 ]; then
+            echo "::notice::review dispatch deferred by VPS (slots full, maintenance, or infra blocked); backfill will retry"
+            exit 0
+          fi
+          exit "$code"
