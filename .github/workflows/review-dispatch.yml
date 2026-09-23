@@ -8,21 +8,32 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # Tailnet access (HITL provisioned once per repo by the operator):
+      # secrets TAILSCALE_OAUTH_CLIENT_ID / TAILSCALE_OAUTH_SECRET (tag:ci, tailnet
+      # Tonours) + REVIEW_SSH_KEY (forced-command key for tonours@omarchy) +
+      # OMARCHY_KNOWN_HOSTS (pinned host key of omarchy.tail089aea.ts.net).
+      # The VPS standby path (ubuntu@152.228.137.32, VPS_KNOWN_HOSTS) is kept
+      # only for rollback; see agents/reviewer/ops/review-event-dispatch.md.
+      - uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+          tags: tag:ci
       - run: |
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "${{ secrets.REVIEW_SSH_KEY }}" > ~/.ssh/review_dispatch
           chmod 600 ~/.ssh/review_dispatch
-          printf '%s\n' "${{ secrets.VPS_KNOWN_HOSTS }}" > ~/.ssh/review_known_hosts
+          printf '%s\n' "${{ secrets.OMARCHY_KNOWN_HOSTS }}" > ~/.ssh/review_known_hosts
           chmod 600 ~/.ssh/review_known_hosts
           set +e
           ssh -i ~/.ssh/review_dispatch -o UserKnownHostsFile=~/.ssh/review_known_hosts \
             -o ConnectTimeout=15 -o BatchMode=yes \
-            ubuntu@152.228.137.32 \
+            tonours@omarchy.tail089aea.ts.net \
             "review Tonours/${{ github.event.repository.name }} ${{ github.event.number }} ${{ github.event.pull_request.head.sha }} ${{ github.event.action }} ${{ github.event.pull_request.user.login }}"
           code=$?
           set -e
           if [ "$code" -eq 75 ]; then
-            echo "::notice::review dispatch deferred by VPS (slots full, maintenance, or infra blocked); backfill will retry"
+            echo "::notice::review dispatch deferred by omarchy (slots full, maintenance, or infra blocked); backfill will retry"
             exit 0
           fi
           exit "$code"
