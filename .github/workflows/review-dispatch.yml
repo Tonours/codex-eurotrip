@@ -9,11 +9,11 @@ jobs:
     timeout-minutes: 5
     steps:
       # Tailnet access (HITL provisioned once per repo by the operator):
-      # secrets TAILSCALE_OAUTH_CLIENT_ID / TAILSCALE_OAUTH_SECRET (tag:ci, tailnet
-      # Tonours) + REVIEW_SSH_KEY (forced-command key for tonours@omarchy) +
-      # OMARCHY_KNOWN_HOSTS (pinned host key of omarchy.tail089aea.ts.net).
-      # The VPS standby path (ubuntu@152.228.137.32, VPS_KNOWN_HOSTS) is kept
-      # only for rollback; see agents/reviewer/ops/review-event-dispatch.md.
+      # secrets TAILSCALE_OAUTH_CLIENT_ID / TAILSCALE_OAUTH_SECRET (tag:ci) +
+      # REVIEW_SSH_KEY (forced-command key) + OMARCHY_KNOWN_HOSTS (pinned host
+      # key of the review host) and repo variable REVIEW_SSH_TARGET (user@host).
+      # The VPS standby path (VPS_KNOWN_HOSTS) is kept only for rollback;
+      # see agents/reviewer/ops/review-event-dispatch.md.
       - uses: tailscale/github-action@v3
         with:
           oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
@@ -28,7 +28,7 @@ jobs:
           set +e
           ssh -i ~/.ssh/review_dispatch -o UserKnownHostsFile=~/.ssh/review_known_hosts \
             -o ConnectTimeout=15 -o BatchMode=yes \
-            tonours@omarchy.tail089aea.ts.net \
+            "${{ vars.REVIEW_SSH_TARGET }}" \
             "review Tonours/${{ github.event.repository.name }} ${{ github.event.number }} ${{ github.event.pull_request.head.sha }} ${{ github.event.action }} ${{ github.event.pull_request.user.login }}"
           code=$?
           set -e
